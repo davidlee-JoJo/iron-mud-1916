@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { GAME } from '../config/game.js';
-import { clamp, damp } from '../core/MathUtils.js';
+import { clamp, damp, wrapAngle } from '../core/MathUtils.js';
 import { spreadDirection } from '../weapons/Weapon.js';
 
 // 載具基底：動態剛體、裝甲、駕駛進出、維修、損壞與重生。
@@ -13,6 +13,7 @@ export class Vehicle {
     this.team = opts.team;
     this.spawnPos = new THREE.Vector3(opts.pos[0], opts.y ?? 0, opts.pos[1]);
     this.spawnRot = opts.rot ?? 0;
+    this.targetYaw = this.spawnRot;
     this.maxHp = opts.maxHp;
     this.hp = this.maxHp;
     this.destroyed = false;
@@ -111,6 +112,7 @@ export class Vehicle {
   enter(player) {
     if (this.destroyed || this.driver || player.team !== this.team) return false;
     this.driver = player;
+    this.targetYaw = this.getYaw();
     return true;
   }
 
@@ -163,8 +165,28 @@ export class Vehicle {
     }, true);
 
     const speed = Math.hypot(lv.x, lv.z);
-    const turn = steer * (this.type === 'tank' ? 1.15 : 1.9) * (0.35 + clamp(speed / maxSpeed, 0, 1) * 0.65);
-    this.body.setAngvel({ x: 0, y: damp(this.body.angvel().y, turn, 6, dt), z: 0 }, true);
+    const speedFactor = clamp(speed / maxSpeed, 0, 1);
+
+    // 駕駛員按住 W/S 且沒有轉向時，讓車體慢慢對齊砲塔/鏡頭方向。
+    // 這樣按 W 會往玩家看的方向前進，不會因為砲塔轉向而感覺在橫移。
+    if (throttle !== 0 && steer === 0) {
+      const aimOffset = this.type === 'tank' ? this.turretYaw : this.aimYaw;
+      if (Math.abs(aimOffset) > 0.01) {
+        const alignRate = (this.type === 'tank' ? 2.6 : 3.0) * dt;
+        const delta = clamp(aimOffset, -alignRate, alignRate);
+        this.targetYaw = wrapAngle(this.targetYaw + delta);
+        if (this.type === 'tank') this.turretYaw = wrapAngle(this.turretYaw - delta);
+        else this.aimYaw = wrapAngle(this.aimYaw - delta);
+      }
+    }
+
+    // 目標航向由 A/D 控制；車體會主動修正偏航，避免碰撞或地形讓坦克歪掉。
+    const turnRate = (this.type === 'tank' ? 2.4 : 3.4) * (0.65 + speedFactor * 0.35);
+    if (steer !== 0) this.targetYaw = wrapAngle(this.targetYaw + steer * turnRate * dt);
+    const yawError = wrapAngle(this.targetYaw - this.getYaw());
+    const desiredAngVel = clamp(yawError * 5, -4, 4);
+    const angvel = this.body.angvel();
+    this.body.setAngvel({ x: 0, y: damp(angvel.y, desiredAngVel, 12, dt), z: 0 }, true);
 
     if (deep && isPlayerDriver) this.takeDamage(8 * dt, null, 'water', this.getCenter());
   }
@@ -376,6 +398,7 @@ export class Vehicle {
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.mesh.rotation.set(0, 0, 0);
     this.game.registry.add(this.collider, this, 'vehicle');
+    this.targetYaw = this.spawnRot;
     this.turretYaw = 0;
     this.turretPitch = 0;
     this.aimYaw = 0;
