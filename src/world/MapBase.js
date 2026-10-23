@@ -161,6 +161,17 @@ export class MapBase {
       this.flags.push(flag);
       setFlagOwner(flag, null, null);
     }
+    // 最靠近地圖中心的旗點，AI 會固定派一組小隊爭奪。
+    let center = null;
+    let best = Infinity;
+    for (const flag of this.flags) {
+      const d = Math.hypot(flag.pos.x, flag.pos.z);
+      if (d < best) {
+        best = d;
+        center = flag;
+      }
+    }
+    this.centerFlag = center;
   }
 
   buildAmbient() {

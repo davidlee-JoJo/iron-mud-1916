@@ -11,12 +11,13 @@ const degToRad = (d) => (d * Math.PI) / 180;
 
 // AI 士兵：感知、導航、兵種行為、交戰、倒地與復活。
 export class Bot {
-  constructor(game, team, classId, name, slot) {
+  constructor(game, team, classId, name, slot, squad) {
     this.game = game;
     this.team = team;
     this.classId = classId;
     this.name = name;
     this.slot = slot;
+    this.squad = squad;
     this.isBot = true;
     this.isSoldier = true;
     this.isVehicle = false;
@@ -69,6 +70,8 @@ export class Bot {
     this.deathTimer = 0;
     this.spawnPos = new THREE.Vector3();
     this.lastDamageSource = null;
+    this.alertCooldown = 0;
+    this.shadowTimer = 0;
     this.controller = game.physicsWorld.createCharacterController(0.02);
     this.controller.enableAutostep(0.45, 0.2, true);
     this.controller.enableSnapToGround(0.5);
@@ -171,6 +174,8 @@ export class Bot {
     this.mineCooldown = 0;
     this.flareCooldown = 0;
     this.lastDamageSource = null;
+    this.alertCooldown = 0;
+    this.shadowTimer = 0;
     this.model.root.visible = true;
     this.model.setPosition(this.getFeetPosition(), this.yaw);
   }
@@ -182,6 +187,17 @@ export class Bot {
       return;
     }
     if (!this.model) return;
+
+    // 16v16 時只讓附近士兵投射陰影，降低 shadow pass 的負擔。
+    this.shadowTimer -= dt;
+    if (this.shadowTimer <= 0) {
+      this.shadowTimer = 0.5;
+      const near = this.game.camera.position.distanceToSquared(this.position) < 45 * 45;
+      this.model.root.traverse((o) => {
+        if (o.isMesh) o.castShadow = near;
+      });
+    }
+
     const feet = this.getFeetPosition();
     this.model.setPosition(feet, this.yaw);
     if (this.downed) {
@@ -276,6 +292,7 @@ export class Bot {
     this.atCooldown = Math.max(0, this.atCooldown - dt);
     this.mineCooldown = Math.max(0, this.mineCooldown - dt);
     this.flareCooldown = Math.max(0, this.flareCooldown - dt);
+    this.alertCooldown = Math.max(0, this.alertCooldown - dt);
     this.reactionTimer -= dt;
 
     this.perceive();
@@ -297,7 +314,7 @@ export class Bot {
         this.reviveTarget = ally;
         this.reviveTimer += dt;
         const d = ally.getCenter().distanceTo(this.position);
-        this.moveToward(ally.getCenter(), d < 2.2 ? 0 : 4.6);
+        this.moveToward(ally.getCenter(), d < 2.2 ? 0 : 5.2);
         if (d < 2.3) {
           if (this.reviveTimer >= 1.5) {
             ally.revive(50);
@@ -326,7 +343,7 @@ export class Bot {
       if (v && !enemyNear) {
         this.repairTarget = v;
         const d = v.getCenter().distanceTo(this.position);
-        this.moveToward(v.getCenter(), d < 5 ? 0 : 4.6);
+        this.moveToward(v.getCenter(), d < 5 ? 0 : 5.2);
         if (d < 5.2) v.repair(45 * dt);
         this.aiming = false;
         this.state = 'repair';
@@ -372,10 +389,10 @@ export class Bot {
       this.state = 'engage';
       this.aiming = true;
       const dist = targetDist;
-      const pref = this.classId === 'scout' ? 45 : 18;
-      if (dist > pref + 12) {
-        this.moveToward(this.target.getCenter(), 4.2);
-      } else if (dist < 7) {
+      const pref = this.classId === 'scout' ? 40 : 14;
+      if (dist > pref + 6) {
+        this.moveToward(this.target.getCenter(), 5.2);
+      } else if (dist < 6) {
         this.strafeDir = this.strafeDir || 1;
         this.strafeTimer -= dt;
         if (this.strafeTimer <= 0) {
@@ -385,7 +402,7 @@ export class Bot {
         const dir = this.target.getCenter().sub(this.position).normalize();
         const side = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(this.strafeDir);
         this.desiredDir.copy(side);
-        this.desiredSpeed = 3.2;
+        this.desiredSpeed = 3.4;
       } else {
         this.strafeTimer -= dt;
         if (this.strafeTimer <= 0) {
@@ -393,15 +410,15 @@ export class Bot {
           this.strafeDir *= -1;
         }
         const dir = this.target.getCenter().sub(this.position).normalize();
-        const side = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(this.strafeDir * 0.7);
+        const side = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(this.strafeDir * 0.8);
         this.desiredDir.copy(side);
-        this.desiredSpeed = 2.4;
+        this.desiredSpeed = 2.8;
       }
 
-      if (this.health < 32 && dist < 30) {
+      if (this.health < 25 && dist < 30) {
         const away = this.position.clone().sub(this.target.getCenter()).normalize();
         this.desiredDir.copy(away);
-        this.desiredSpeed = 4.8;
+        this.desiredSpeed = 5.2;
         this.state = 'retreat';
       }
 
@@ -412,9 +429,9 @@ export class Bot {
     this.target = null;
     this.aiming = false;
 
-    if (this.lastSeenPos && this.game.time - this.lastSeenTime < 6) {
+    if (this.lastSeenPos && this.game.time - this.lastSeenTime < 8) {
       this.state = 'advance';
-      this.moveToward(this.lastSeenPos, 4.6);
+      this.moveToward(this.lastSeenPos, 5.2);
       return;
     }
 
@@ -424,8 +441,8 @@ export class Bot {
         const dist = flag.pos.distanceTo(this.position);
         if (dist < flag.radius * 0.75) {
           this.state = 'hold';
-          this.desiredDir.set(Math.cos(this.game.time * 0.5 + this.slot), 0, Math.sin(this.game.time * 0.5 + this.slot)).multiplyScalar(0.25);
-          this.desiredSpeed = 1.2;
+          this.desiredDir.set(Math.cos(this.game.time * 0.5 + this.slot), 0, Math.sin(this.game.time * 0.5 + this.slot)).multiplyScalar(0.3);
+          this.desiredSpeed = 1.6;
           this.strafeTimer -= dt;
           if (this.strafeTimer <= 0) {
             this.strafeTimer = 2 + Math.random() * 2;
@@ -433,7 +450,7 @@ export class Bot {
           }
         } else {
           this.state = 'advance';
-          this.moveToward(flag.pos, 4.8);
+          this.moveToward(flag.pos, 5.4);
         }
       }
     }
@@ -482,24 +499,41 @@ export class Bot {
 
   chooseObjective() {
     const flags = this.game.world.flags;
-    const own = flags.filter((f) => f.owner === this.team).length;
-    const enemy = flags.filter((f) => f.owner && f.owner !== this.team).length;
-    let best = null;
-    let bestScore = Infinity;
-    for (const f of flags) {
-      let score;
-      if (f.owner !== this.team) {
-        score = f.pos.distanceTo(this.position) - (own < enemy ? 40 : 0);
+    if (!flags.length) {
+      this.objective = null;
+      return;
+    }
+    const center = this.game.world.centerFlag;
+    const squad = this.squad ?? 1;
+    let target = null;
+
+    if (squad === 0 && center) {
+      // 中央小隊：永遠優先爭奪/防守最靠近地圖中心的旗點。
+      target = center;
+    } else if (squad === 3) {
+      // 防守小隊：優先守住己方旗點；沒有己方旗點時去中央。
+      const owned = flags.filter((f) => f.owner === this.team);
+      if (owned.length) {
+        target = owned.reduce((a, b) => (
+          a.pos.distanceToSquared(this.position) <= b.pos.distanceToSquared(this.position) ? a : b
+        ));
       } else {
-        score = f.pos.distanceTo(this.position) + 60;
+        target = center || flags[0];
       }
-      score += Math.random() * 12;
-      if (score < bestScore) {
-        bestScore = score;
-        best = f;
+    } else {
+      // 進攻小隊：先打外圍的非己方旗點；中央交給中央小隊。
+      let candidates = flags.filter((f) => f.owner !== this.team);
+      const outer = candidates.filter((f) => f !== center);
+      if (outer.length) candidates = outer;
+      if (candidates.length) {
+        candidates.sort((a, b) => a.pos.distanceToSquared(this.position) - b.pos.distanceToSquared(this.position));
+        target = candidates[squad === 2 && candidates.length > 1 ? 1 : 0];
+      } else {
+        target = center || flags[0];
       }
     }
-    this.objective = best ? best.id : null;
+
+    this.objective = (target || flags[0]).id;
   }
 
   perceive() {
@@ -511,12 +545,16 @@ export class Bot {
       if (b === this || b.team === this.team || b.downed || b.dead) continue;
       enemies.push(b);
     }
+    // 16v16 時每幀只檢查最近的幾名敵人，避免感知射線數量爆炸。
+    enemies.sort((a, b) => a.position.distanceToSquared(this.position) - b.position.distanceToSquared(this.position));
     const eye = this.getEyePosition();
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const maxRange = GAME.botDifficulty.maxRange;
     let best = null;
     let bestDist = Infinity;
-    for (const e of enemies) {
+    const checkCount = Math.min(8, enemies.length);
+    for (let i = 0; i < checkCount; i++) {
+      const e = enemies[i];
       const targetPos = e.getCenter();
       const dir = targetPos.clone().sub(eye);
       const dist = dir.length();
@@ -693,6 +731,12 @@ export class Bot {
     if (this.downed || this.dead) return false;
     this.health -= amount;
     this.lastDamageSource = source;
+    if (source && source.team !== this.team && typeof source.getCenter === 'function') {
+      // 被攻擊時立刻記住來源方向，避免挨打後還呆呆站著。
+      this.lastSeenPos = source.getCenter();
+      this.lastSeenTime = this.game.time;
+      this.reactionTimer = Math.min(this.reactionTimer, 0.15);
+    }
     if (this.health <= 0) {
       this.health = 0;
       this.down(source);

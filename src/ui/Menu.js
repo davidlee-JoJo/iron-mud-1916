@@ -181,7 +181,7 @@ export class Menus {
           <button class="btn" data-action="settings">設定</button>
           <button class="btn" data-action="controls">操作說明</button>
         </div>
-        <div class="menu-footer">程序化 3D 戰場 · 8v8 征服模式 · 三張可選地圖</div>
+        <div class="menu-footer">程序化 3D 戰場 · 16v16 征服模式 · 三張可選地圖</div>
       </div>
     `;
     this.root.appendChild(this.menuScreen);
@@ -392,7 +392,7 @@ export class Menus {
           </div>
           <div class="side-block">
             <div class="side-title">戰場情報</div>
-            <div class="intel">票數 ${GAME.tickets} · 8v8 · 三旗點</div>
+            <div class="intel">票數 ${GAME.tickets} · 16v16 · 三旗點</div>
             <div class="intel">${map.description}</div>
           </div>
           <button class="btn primary deploy-btn" ${canDeploy ? '' : 'disabled'}>

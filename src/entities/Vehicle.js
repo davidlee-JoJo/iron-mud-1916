@@ -294,6 +294,7 @@ export class Vehicle {
       splashDamage: 65,
       splashRadius: 4.5
     });
+    this.game.alertBots(this, muzzle);
     this.cannonReload = 4.2;
     this.game.audio.playGun('cannon', null, true);
     this.game.effects.muzzleFlash(muzzle, dir, true);
@@ -314,6 +315,7 @@ export class Vehicle {
     const finalDir = spreadDirection(dir, def.spread);
     const muzzle = origin.clone().addScaledVector(finalDir, 0.4);
     this.game.combat.hitscan(origin, finalDir, def, this, { muzzlePos: muzzle, isPlayer: true });
+    this.game.alertBots(this, muzzle);
     this.game.audio.playGun(this.type === 'tank' ? 'tankmg' : 'jeepmg', null, true);
     this.game.effects.muzzleFlash(muzzle, finalDir, true);
   }

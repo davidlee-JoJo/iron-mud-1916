@@ -796,6 +796,20 @@ export class Game {
     return p;
   }
 
+  alertBots(source, position) {
+    if (!source || !position || !this.bots.length) return;
+    const team = source.team;
+    for (const b of this.bots) {
+      if (b.team === team || b.dead || b.downed) continue;
+      if (b.alertCooldown > 0) continue;
+      if (b.position.distanceToSquared(position) > 55 * 55) continue;
+      b.alertCooldown = 2.5 + Math.random() * 1.5;
+      b.lastSeenPos = position.clone();
+      b.lastSeenTime = this.time;
+      if (b.reactionTimer > 0.15) b.reactionTimer = 0.15;
+    }
+  }
+
   spotEnemies(team, pos, radius, duration) {
     for (const s of this.getSoldiers()) {
       if (s.team === team || s.downed || s.dead) continue;

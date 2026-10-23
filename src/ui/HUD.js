@@ -29,9 +29,9 @@ export class HUD {
   build() {
     this.root.innerHTML = `
       <div class="hud-top">
-        <div class="tickets team-a"><span class="t-name">協約國</span><span class="t-num" data-ticket="A">300</span></div>
+        <div class="tickets team-a"><span class="t-name">協約國</span><span class="t-num" data-ticket="A">400</span></div>
         <div class="flags-bar"></div>
-        <div class="tickets team-b"><span class="t-name">同盟國</span><span class="t-num" data-ticket="B">300</span></div>
+        <div class="tickets team-b"><span class="t-name">同盟國</span><span class="t-num" data-ticket="B">400</span></div>
       </div>
       <div class="round-timer">15:00</div>
       <div class="minimap-wrap">

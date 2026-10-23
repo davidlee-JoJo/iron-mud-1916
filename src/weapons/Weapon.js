@@ -65,8 +65,11 @@ export class Weapon {
       muzzlePos: muzzle,
       isPlayer: !!this.owner.isPlayer
     });
+    this.game.alertBots(this.owner, origin);
 
-    this.game.audio.playGun(def.muzzle, this.owner.isPlayer ? null : this.owner.position, !!this.owner.isPlayer);
+    if (this.owner.isPlayer || this.owner.position.distanceToSquared(this.game.camera.position) < 90 * 90) {
+      this.game.audio.playGun(def.muzzle, this.owner.isPlayer ? null : this.owner.position, !!this.owner.isPlayer);
+    }
     this.game.effects.muzzleFlash(muzzle, finalDir, !!this.owner.isPlayer);
 
     if (this.ammo === 0) this.startReload();

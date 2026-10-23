@@ -108,6 +108,7 @@ export class Combat {
     const radius = opts.radius ?? 6;
     const damage = opts.damage ?? 80;
     this.splash(position, radius, damage, opts.source, { vehicleDamage: opts.vehicleDamage });
+    this.game.alertBots(opts.source, position);
     this.game.effects.explosion(position, radius);
     this.game.audio.playExplosion(position, radius / 6);
     this.game.addShake(clamp(radius * 0.08, 0.15, 1.2), position);
