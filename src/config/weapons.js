@@ -1,0 +1,232 @@
+// 武器資料：射速、傷害、擴散、後座力與瞄準倍率。
+// spread 單位為弧度；range 為開始衰減距離。
+export const WEAPONS = {
+  mp18: {
+    id: 'mp18',
+    name: 'MP18 衝鋒槍',
+    short: 'MP18',
+    slot: 'primary',
+    type: 'auto',
+    damage: 24,
+    headMult: 2,
+    rpm: 540,
+    mag: 32,
+    reserve: 160,
+    reload: 2.5,
+    spreadHip: 0.03,
+    spreadAds: 0.013,
+    bloom: 0.0045,
+    maxBloom: 0.075,
+    recover: 0.09,
+    recoilPitch: 0.55,
+    recoilYaw: 0.26,
+    recoilRecover: 7,
+    adsFov: 58,
+    adsTime: 0.18,
+    range: 60,
+    falloffStart: 22,
+    falloffEnd: 55,
+    minDamage: 0.55,
+    muzzle: 'smg',
+    viewmodel: 'smg',
+    tracer: true
+  },
+  selbstlader: {
+    id: 'selbstlader',
+    name: 'Selbstlader M1916',
+    short: 'M1916',
+    slot: 'primary',
+    type: 'semi',
+    damage: 38,
+    headMult: 2,
+    rpm: 260,
+    mag: 10,
+    reserve: 90,
+    reload: 2.9,
+    spreadHip: 0.022,
+    spreadAds: 0.007,
+    bloom: 0.006,
+    maxBloom: 0.06,
+    recover: 0.08,
+    recoilPitch: 0.95,
+    recoilYaw: 0.35,
+    recoilRecover: 6.5,
+    adsFov: 54,
+    adsTime: 0.2,
+    range: 90,
+    falloffStart: 35,
+    falloffEnd: 85,
+    minDamage: 0.6,
+    muzzle: 'semi',
+    viewmodel: 'rifle',
+    tracer: true
+  },
+  bar: {
+    id: 'bar',
+    name: 'BAR M1918',
+    short: 'BAR',
+    slot: 'primary',
+    type: 'auto',
+    damage: 30,
+    headMult: 1.8,
+    rpm: 420,
+    mag: 20,
+    reserve: 140,
+    reload: 3.2,
+    spreadHip: 0.035,
+    spreadAds: 0.017,
+    bloom: 0.005,
+    maxBloom: 0.08,
+    recover: 0.085,
+    recoilPitch: 0.75,
+    recoilYaw: 0.4,
+    recoilRecover: 6,
+    adsFov: 60,
+    adsTime: 0.24,
+    range: 100,
+    falloffStart: 40,
+    falloffEnd: 95,
+    minDamage: 0.6,
+    muzzle: 'lmg',
+    viewmodel: 'lmg',
+    tracer: true
+  },
+  gewehr98: {
+    id: 'gewehr98',
+    name: 'Gewehr 98',
+    short: 'G98',
+    slot: 'primary',
+    type: 'bolt',
+    damage: 85,
+    headMult: 2.4,
+    rpm: 45,
+    boltTime: 1.35,
+    mag: 5,
+    reserve: 40,
+    reload: 3.4,
+    spreadHip: 0.055,
+    spreadAds: 0.0015,
+    bloom: 0.008,
+    maxBloom: 0.04,
+    recover: 0.06,
+    recoilPitch: 1.9,
+    recoilYaw: 0.6,
+    recoilRecover: 5.5,
+    adsFov: 20,
+    adsTime: 0.32,
+    scope: true,
+    range: 220,
+    falloffStart: 90,
+    falloffEnd: 210,
+    minDamage: 0.82,
+    muzzle: 'bolt',
+    viewmodel: 'sniper',
+    tracer: true
+  },
+  p08: {
+    id: 'p08',
+    name: 'P08 手槍',
+    short: 'P08',
+    slot: 'secondary',
+    type: 'semi',
+    damage: 24,
+    headMult: 2,
+    rpm: 320,
+    mag: 8,
+    reserve: 48,
+    reload: 2.0,
+    spreadHip: 0.03,
+    spreadAds: 0.015,
+    bloom: 0.007,
+    maxBloom: 0.07,
+    recover: 0.1,
+    recoilPitch: 0.55,
+    recoilYaw: 0.3,
+    recoilRecover: 8,
+    adsFov: 65,
+    adsTime: 0.16,
+    range: 50,
+    falloffStart: 18,
+    falloffEnd: 45,
+    minDamage: 0.5,
+    muzzle: 'pistol',
+    viewmodel: 'pistol',
+    tracer: true
+  }
+};
+
+export const GADGETS = {
+  grenade: {
+    id: 'grenade',
+    name: '手榴彈',
+    damage: 85,
+    radius: 6,
+    fuse: 3.2,
+    vehicleMult: 0.45,
+    count: 2
+  },
+  atGrenade: {
+    id: 'atGrenade',
+    name: '反載具手榴彈',
+    damage: 70,
+    radius: 4,
+    fuse: 2.4,
+    vehicleDamage: 260,
+    count: 1
+  },
+  mine: {
+    id: 'mine',
+    name: '反載具地雷',
+    damage: 90,
+    radius: 5,
+    vehicleDamage: 420,
+    count: 2
+  },
+  medkit: {
+    id: 'medkit',
+    name: '醫療包',
+    healPerSecond: 12,
+    radius: 4.5,
+    life: 18,
+    count: 2
+  },
+  flare: {
+    id: 'flare',
+    name: '信號彈',
+    radius: 32,
+    life: 10,
+    count: 2
+  },
+  repair: {
+    id: 'repair',
+    name: '維修扳手',
+    rate: 55
+  }
+};
+
+export const VEHICLE_WEAPONS = {
+  tankCannon: {
+    damage: 150,
+    splashDamage: 65,
+    splashRadius: 4.5,
+    speed: 105,
+    reload: 4.2,
+    gravity: true
+  },
+  tankMG: {
+    damage: 18,
+    rpm: 520,
+    spread: 0.012,
+    range: 90
+  },
+  jeepMG: {
+    damage: 22,
+    rpm: 600,
+    spread: 0.016,
+    range: 90
+  }
+};
+
+export function getWeapon(id) {
+  return WEAPONS[id];
+}
