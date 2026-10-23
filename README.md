@@ -2,6 +2,14 @@
 
 一款可在瀏覽器直接遊玩的單機 3D 第一次世界大戰風格 FPS。使用 Three.js + Rapier3D 打造，包含四兵種、8v8 AI、征服模式、坦克與吉普車，以及三張可選地圖。
 
+## 線上遊玩
+
+**https://davidlee-jojo.github.io/iron-mud-1916/**
+
+> 建議使用桌面版 Chrome / Edge。第一次載入需要數秒生成地形與導航網格。
+>
+> 每次 push 到 `master` 分支時，GitHub Actions 會自動建置並部署到 GitHub Pages。
+
 > 所有模型、貼圖、天空、粒子與音效都是程式化生成，沒有下載任何外部美術或音檔。
 
 ---
