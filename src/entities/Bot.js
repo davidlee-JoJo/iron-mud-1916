@@ -60,6 +60,8 @@ export class Bot {
     this.burstPause = 0;
     this.stuckTimer = 0;
     this.lastStuckPos = new THREE.Vector3();
+    this.detourTimer = 0;
+    this.detourDir = new THREE.Vector3();
     this.reviveTarget = null;
     this.reviveTimer = 0;
     this.repairTarget = null;
@@ -166,6 +168,8 @@ export class Bot {
     this.burstPause = 0;
     this.stuckTimer = 0;
     this.lastStuckPos.copy(spawnPos);
+    this.detourTimer = 0;
+    this.detourDir.set(0, 0, 0);
     this.reviveTarget = null;
     this.reviveTimer = 0;
     this.repairTarget = null;
@@ -223,6 +227,12 @@ export class Bot {
     }
     const desired = new THREE.Vector3(this.desiredDir.x, 0, this.desiredDir.z);
     if (desired.lengthSq() > 0.001) desired.normalize();
+
+    // 卡住時的強制側移：繞過導航格沒抓到的細小障礙（牆角、載具、旗桿等）。
+    if (this.detourTimer > 0) {
+      this.detourTimer -= dt;
+      desired.copy(this.detourDir);
+    }
 
     const pos = this.position;
     const nav = this.game.world.nav;
@@ -292,6 +302,9 @@ export class Bot {
       if (moved < 0.45 && this.desiredDir.lengthSq() > 0.1) {
         this.repathTimer = 0;
         this.strafeDir *= -1;
+        const d = this.desiredDir;
+        this.detourDir.set(-d.z, 0, d.x).normalize().multiplyScalar(this.strafeDir);
+        this.detourTimer = 1.0;
       }
     }
   }

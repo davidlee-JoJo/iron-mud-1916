@@ -107,6 +107,11 @@ export class NavGrid {
         if (hit.normal.y < 0.52) continue;
         if (y > 45) continue;
 
+        // 只接受貼近地形高度的表面：沙袋、瓦礫、廢車殘骸、屋頂的「頂面」
+        // 雖然平坦但步兵爬不上去（autostep 僅 0.45m），不能當成可行走地面。
+        const ground = this.map.terrain.heightAt(x, z);
+        if (y - ground > 0.45) continue;
+
         upRay.origin.x = x;
         upRay.origin.y = y + 0.25;
         upRay.origin.z = z;
@@ -114,7 +119,8 @@ export class NavGrid {
         if (overhead) continue;
 
         this.walkable[idx] = 1;
-        this.heights[idx] = y;
+        // 高度一律用純地形高度，讓 A* 的高度差檢查反映真實坡度。
+        this.heights[idx] = ground;
         count++;
         if (count % 2500 === 0) {
           if (onProgress) onProgress(count);
