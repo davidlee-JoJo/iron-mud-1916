@@ -102,8 +102,8 @@ export class Player {
     this.controller = world.createCharacterController(0.02);
     this.controller.enableAutostep(0.45, 0.2, true);
     this.controller.enableSnapToGround(0.5);
-    this.controller.setMaxSlopeClimbAngle(degToRad(55));
-    this.controller.setMinSlopeSlideAngle(degToRad(35));
+    this.controller.setMaxSlopeClimbAngle(degToRad(62));
+    this.controller.setMinSlopeSlideAngle(degToRad(45));
     this.controller.setApplyImpulsesToDynamicBodies(true);
   }
 

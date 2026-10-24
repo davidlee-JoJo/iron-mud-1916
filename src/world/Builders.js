@@ -278,6 +278,9 @@ export function buildTrenches(map, opts = {}) {
   for (const trench of trenches) {
     const pts = trench.points;
     const width = trench.width;
+    // 出入口周圍不放置木牆與雜物，保留進出通道。
+    const openings = trench.openings || [];
+    const nearOpening = (x, z) => openings.some((o) => Math.hypot(x - o[0], z - o[1]) < o[2] * 1.9);
     for (let s = 0; s < pts.length - 1; s++) {
       const a = pts[s];
       const b = pts[s + 1];
@@ -294,6 +297,7 @@ export function buildTrenches(map, opts = {}) {
         const z = a[1] + dz * t;
         const y = terrain.heightAt(x, z);
         map.batch.addBox(2.4, 0.09, len / steps + 0.1, x, y + 0.06, z, angle, 'wood', true);
+        if (nearOpening(x, z)) continue;
         map.batch.addBox(0.25, 1.5, len / steps, x + nx * (width / 2 + 0.2), y + 0.8, z + nz * (width / 2 + 0.2), angle, 'wood', true);
         map.batch.addBox(0.25, 1.5, len / steps, x - nx * (width / 2 + 0.2), y + 0.8, z - nz * (width / 2 + 0.2), angle, 'wood', true);
         map.batch.addBox(0.6, 0.4, len / steps, x - nx * (width / 2 - 0.2), y + 0.55, z - nz * (width / 2 - 0.2), angle, 'wood', false);
@@ -307,6 +311,7 @@ export function buildTrenches(map, opts = {}) {
       const dz = next[1] - p[1];
       const len = Math.hypot(dx, dz);
       if (len < 0.1) continue;
+      if (nearOpening(p[0], p[1])) continue;
       const nx = dz / len;
       const nz = -dx / len;
       const angle = Math.atan2(dx, dz);

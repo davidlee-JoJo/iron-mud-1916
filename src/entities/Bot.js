@@ -75,8 +75,8 @@ export class Bot {
     this.controller = game.physicsWorld.createCharacterController(0.02);
     this.controller.enableAutostep(0.45, 0.2, true);
     this.controller.enableSnapToGround(0.5);
-    this.controller.setMaxSlopeClimbAngle(degToRad(55));
-    this.controller.setMinSlopeSlideAngle(degToRad(35));
+    this.controller.setMaxSlopeClimbAngle(degToRad(62));
+    this.controller.setMinSlopeSlideAngle(degToRad(45));
     this.controller.setApplyImpulsesToDynamicBodies(false);
   }
 
@@ -227,10 +227,25 @@ export class Bot {
     const pos = this.position;
     const nav = this.game.world.nav;
     if (desired.lengthSq() > 0.001) {
-      const probeX = pos.x + desired.x * 1.6;
-      const probeZ = pos.z + desired.z * 1.6;
+      const probeDist = 1.6;
+      const probeX = pos.x + desired.x * probeDist;
+      const probeZ = pos.z + desired.z * probeDist;
       if (this.game.world.isDeepWater(probeX, probeZ) || !nav.isWalkableAt(probeX, probeZ)) {
-        desired.set(0, 0, 0);
+        // 前方不可行走時旋轉方向尋找可走的側移角度，避免一遇到障礙就整個停住。
+        const base = Math.atan2(desired.z, desired.x);
+        const len = desired.length();
+        let found = false;
+        for (const off of [0.5, -0.5, 1.0, -1.0, 1.5, -1.5, 2.1, -2.1]) {
+          const a = base + off;
+          const px = pos.x + Math.cos(a) * probeDist;
+          const pz = pos.z + Math.sin(a) * probeDist;
+          if (!this.game.world.isDeepWater(px, pz) && nav.isWalkableAt(px, pz)) {
+            desired.set(Math.cos(a) * len, 0, Math.sin(a) * len);
+            found = true;
+            break;
+          }
+        }
+        if (!found) desired.set(0, 0, 0);
       }
     }
 
@@ -314,7 +329,7 @@ export class Bot {
         this.reviveTarget = ally;
         this.reviveTimer += dt;
         const d = ally.getCenter().distanceTo(this.position);
-        this.moveToward(ally.getCenter(), d < 2.2 ? 0 : 5.2);
+        this.moveToward(ally.getCenter(), d < 2.2 ? 0 : 6.0);
         if (d < 2.3) {
           if (this.reviveTimer >= 1.5) {
             ally.revive(50);
@@ -391,7 +406,7 @@ export class Bot {
       const dist = targetDist;
       const pref = this.classId === 'scout' ? 40 : 14;
       if (dist > pref + 6) {
-        this.moveToward(this.target.getCenter(), 5.2);
+        this.moveToward(this.target.getCenter(), 5.6);
       } else if (dist < 6) {
         this.strafeDir = this.strafeDir || 1;
         this.strafeTimer -= dt;
@@ -431,7 +446,7 @@ export class Bot {
 
     if (this.lastSeenPos && this.game.time - this.lastSeenTime < 8) {
       this.state = 'advance';
-      this.moveToward(this.lastSeenPos, 5.2);
+      this.moveToward(this.lastSeenPos, 6.0);
       return;
     }
 
@@ -450,7 +465,7 @@ export class Bot {
           }
         } else {
           this.state = 'advance';
-          this.moveToward(flag.pos, 5.4);
+          this.moveToward(flag.pos, 6.2);
         }
       }
     }
@@ -465,10 +480,11 @@ export class Bot {
     }
     dir.normalize();
 
-    if (this.repathTimer <= 0 || !this.path.length) {
-      this.repathTimer = 1.6 + Math.random() * 1.2;
+    if (this.repathTimer <= 0) {
       this.path = this.game.world.nav.findPath(this.position, point);
       this.pathIndex = 0;
+      // 有路徑就隔一段時間再重算；失敗時快速重試，期間先朝目標直走（探測側移會避障）。
+      this.repathTimer = this.path.length ? 1.6 + Math.random() * 1.2 : 0.9;
     }
 
     if (this.path.length) {

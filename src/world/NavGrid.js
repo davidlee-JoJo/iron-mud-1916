@@ -167,7 +167,8 @@ export class NavGrid {
       const idx = this.cellIndex(c.ix, c.iz);
       if (!this.walkable[idx]) return false;
       const y = this.heights[idx];
-      if (prevY !== null && Math.abs(y - prevY) > 0.75) return false;
+      // 角色控制器可爬 55°+ 的坡，放寬相鄰格高度差讓彈坑緣與戰壕坡可以通行。
+      if (prevY !== null && Math.abs(y - prevY) > 1.15) return false;
       prevY = y;
     }
     return true;
@@ -206,7 +207,7 @@ export class NavGrid {
 
     let iterations = 0;
     let found = false;
-    while (heap.items.length && iterations < 12000) {
+    while (heap.items.length && iterations < 40000) {
       iterations++;
       const cur = heap.pop();
       if (!cur) break;
@@ -224,12 +225,13 @@ export class NavGrid {
         if (!this.inBounds(nx, nz)) continue;
         const nIdx = this.cellIndex(nx, nz);
         if (!this.walkable[nIdx] || this.closed[nIdx]) continue;
-        if (Math.abs(this.heights[nIdx] - curY) > 0.75) continue;
+        // 相鄰格高度差上限放寬到 1.15（約 37° 平均坡），角色控制器爬得上。
+        if (Math.abs(this.heights[nIdx] - curY) > 1.15) continue;
         if (dx !== 0 && dz !== 0) {
           const a = this.cellIndex(cur.ix + dx, cur.iz);
           const b = this.cellIndex(cur.ix, cur.iz + dz);
           if (!this.walkable[a] || !this.walkable[b]) continue;
-          if (Math.abs(this.heights[a] - curY) > 0.75 || Math.abs(this.heights[b] - curY) > 0.75) continue;
+          if (Math.abs(this.heights[a] - curY) > 1.15 || Math.abs(this.heights[b] - curY) > 1.15) continue;
         }
         const tentative = this.gScore[cur.idx] + cost;
         if (tentative < this.gScore[nIdx]) {

@@ -65,7 +65,13 @@ export class Terrain {
     for (const trench of t.trenches || []) {
       const d = distanceToPolyline(x, z, trench.points);
       if (d < trench.width * 0.5 + 1.6) {
-        const f = 1 - smoothstep(trench.width * 0.5, trench.width * 0.5 + 1.6, d);
+        let f = 1 - smoothstep(trench.width * 0.5, trench.width * 0.5 + 1.6, d);
+        // 出入口：指定點位周圍戰壕深度漸變為 0，讓士兵與 AI 能直接進出，
+        // 否則陡峭的戰壕牆在導航網格上是一堵過不去的死牆。
+        for (const o of trench.openings || []) {
+          const od = Math.hypot(x - o[0], z - o[1]);
+          if (od < o[2] * 1.9) f *= smoothstep(o[2], o[2] * 1.9, od);
+        }
         h -= trench.depth * f;
       }
     }
