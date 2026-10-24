@@ -278,9 +278,9 @@ export function buildTrenches(map, opts = {}) {
   for (const trench of trenches) {
     const pts = trench.points;
     const width = trench.width;
-    // 出入口周圍不放置木牆與雜物，保留進出通道。
+    // 出入口坡道周圍（3 倍半徑）不放置木牆與雜物，保留進出通道。
     const openings = trench.openings || [];
-    const nearOpening = (x, z) => openings.some((o) => Math.hypot(x - o[0], z - o[1]) < o[2] * 1.9);
+    const nearOpening = (x, z) => openings.some((o) => Math.hypot(x - o[0], z - o[1]) < o[2] * 3);
     for (let s = 0; s < pts.length - 1; s++) {
       const a = pts[s];
       const b = pts[s + 1];

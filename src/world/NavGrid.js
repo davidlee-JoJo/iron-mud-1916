@@ -87,6 +87,9 @@ export class NavGrid {
   async build(onProgress) {
     const ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
     const upRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+    // 每格多點取樣：偵測格內的薄牆、道具頂面與陡坡帶（如戰壕牆的 64° 峰值），
+    // 單點射線會被 1.5m 格子平均掉而誤判可通行。
+    const offsets = [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]];
     let count = 0;
     for (let iz = 0; iz < this.rows; iz++) {
       for (let ix = 0; ix < this.cols; ix++) {
@@ -98,29 +101,38 @@ export class NavGrid {
 
         if (this.map.terrain.isDeepWater(x, z)) continue;
 
-        ray.origin.x = x;
-        ray.origin.y = 120;
-        ray.origin.z = z;
-        const hit = this.world.castRayAndGetNormal(ray, 220, true);
-        if (!hit) continue;
-        const y = 120 - hit.timeOfImpact;
-        if (hit.normal.y < 0.52) continue;
-        if (y > 45) continue;
-
-        // 只接受貼近地形高度的表面：沙袋、瓦礫、廢車殘骸、屋頂的「頂面」
-        // 雖然平坦但步兵爬不上去（autostep 僅 0.45m），不能當成可行走地面。
-        const ground = this.map.terrain.heightAt(x, z);
-        if (y - ground > 0.45) continue;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        let ok = true;
+        for (const [ox, oz] of offsets) {
+          ray.origin.x = x + ox;
+          ray.origin.y = 120;
+          ray.origin.z = z + oz;
+          const hit = this.world.castRayAndGetNormal(ray, 220, true);
+          if (!hit) { ok = false; break; }
+          const y = 120 - hit.timeOfImpact;
+          if (hit.normal.y < 0.52) { ok = false; break; }
+          if (y > 45) { ok = false; break; }
+          // 只接受貼近地形高度的表面：沙袋、瓦礫、廢車殘骸、屋頂的「頂面」
+          // 雖然平坦但步兵爬不上去（autostep 僅 0.45m），不能當成可行走地面。
+          const ground = this.map.terrain.heightAt(x + ox, z + oz);
+          if (y - ground > 0.45) { ok = false; break; }
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
+        }
+        if (!ok) continue;
+        // 格內高度差過大 = 含陡坡帶（戰壕牆峰值 64° > 控制器可爬的 62°）。
+        if (maxY - minY > 1.3) continue;
 
         upRay.origin.x = x;
-        upRay.origin.y = y + 0.25;
+        upRay.origin.y = minY + 0.25;
         upRay.origin.z = z;
         const overhead = this.world.castRay(upRay, 2.1, true);
         if (overhead) continue;
 
         this.walkable[idx] = 1;
         // 高度一律用純地形高度，讓 A* 的高度差檢查反映真實坡度。
-        this.heights[idx] = ground;
+        this.heights[idx] = this.map.heightAt(x, z);
         count++;
         if (count % 2500 === 0) {
           if (onProgress) onProgress(count);
@@ -173,8 +185,9 @@ export class NavGrid {
       const idx = this.cellIndex(c.ix, c.iz);
       if (!this.walkable[idx]) return false;
       const y = this.heights[idx];
-      // 角色控制器可爬 55°+ 的坡，放寬相鄰格高度差讓彈坑緣與戰壕坡可以通行。
-      if (prevY !== null && Math.abs(y - prevY) > 1.15) return false;
+      // 高度差上限 1.0：剛好讓 2.2m 深的戰壕牆無法用階梯式路徑跨越（必須走出入口），
+      // 同時保留彈坑緣等緩坡的通行。
+      if (prevY !== null && Math.abs(y - prevY) > 1.0) return false;
       prevY = y;
     }
     return true;
@@ -231,13 +244,14 @@ export class NavGrid {
         if (!this.inBounds(nx, nz)) continue;
         const nIdx = this.cellIndex(nx, nz);
         if (!this.walkable[nIdx] || this.closed[nIdx]) continue;
-        // 相鄰格高度差上限放寬到 1.15（約 37° 平均坡），角色控制器爬得上。
-        if (Math.abs(this.heights[nIdx] - curY) > 1.15) continue;
+        // 相鄰格高度差上限 1.0：戰壕牆（2.2m 深）無法被階梯式路徑跨越，
+        // AI 必須走出入口；彈坑緣等緩坡不受影響。
+        if (Math.abs(this.heights[nIdx] - curY) > 1.0) continue;
         if (dx !== 0 && dz !== 0) {
           const a = this.cellIndex(cur.ix + dx, cur.iz);
           const b = this.cellIndex(cur.ix, cur.iz + dz);
           if (!this.walkable[a] || !this.walkable[b]) continue;
-          if (Math.abs(this.heights[a] - curY) > 1.15 || Math.abs(this.heights[b] - curY) > 1.15) continue;
+          if (Math.abs(this.heights[a] - curY) > 1.0 || Math.abs(this.heights[b] - curY) > 1.0) continue;
         }
         const tentative = this.gScore[cur.idx] + cost;
         if (tentative < this.gScore[nIdx]) {
