@@ -1211,6 +1211,34 @@ kbd {
   color: var(--cream);
 }
 
+.vh-hull-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 5px;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.vh-hull-dial {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: rgba(233, 225, 208, 0.06);
+}
+
+.vh-hull-arrow {
+  display: inline-block;
+  font-size: 0.6rem;
+  line-height: 1;
+  color: var(--amber);
+  transition: transform 0.08s linear;
+}
+
 .objective-markers,
 .spotted-markers {
   position: absolute;

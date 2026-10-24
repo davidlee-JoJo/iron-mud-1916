@@ -11,6 +11,7 @@ export class Tank extends Vehicle {
       bodyHeight: 1.25,
       half: { x: 1.5, y: 0.9, z: 2.7 },
       mass: 5200,
+      friction: 0.55,
       name: 'tank'
     });
   }
@@ -59,6 +60,7 @@ export class Tank extends Vehicle {
 
     this.turretGroup = new THREE.Group();
     this.turretGroup.position.set(0, 1.15, 0.35);
+    this.turretGroup.rotation.order = 'YXZ';
     this.mesh.add(this.turretGroup);
     add(1.85, 0.6, 2.05, 0, 0, 0, metal, 0, 0, 0, this.turretGroup);
     add(1.3, 0.28, 1.2, 0, 0.38, 0.2, metal, 0, 0, 0, this.turretGroup);

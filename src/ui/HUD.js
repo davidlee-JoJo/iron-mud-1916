@@ -3,6 +3,7 @@ import { GAME } from '../config/game.js';
 import { CLASSES } from '../config/classes.js';
 import { GADGETS, WEAPONS } from '../config/weapons.js';
 import { Minimap } from './Minimap.js';
+import { wrapAngle } from '../core/MathUtils.js';
 
 // 遊戲內 HUD：生命、彈藥、旗點、小地圖、標記、擊殺訊息、載具與計分板。
 export class HUD {
@@ -65,6 +66,7 @@ export class HUD {
         <div class="vh-title">載具</div>
         <div class="vh-hp"><div class="vh-hp-fill"></div></div>
         <div class="vh-row"><span class="vh-speed">0</span><span class="vh-reload">主砲就緒</span></div>
+        <div class="vh-hull-row" hidden><span>車體方向</span><span class="vh-hull-dial"><span class="vh-hull-arrow">▲</span></span></div>
       </div>
       <div class="objective-markers"></div>
       <div class="spotted-markers"></div>
@@ -102,6 +104,8 @@ export class HUD {
     this.vhHp = this.root.querySelector('.vh-hp-fill');
     this.vhSpeed = this.root.querySelector('.vh-speed');
     this.vhReload = this.root.querySelector('.vh-reload');
+    this.vhHullRow = this.root.querySelector('.vh-hull-row');
+    this.vhHullArrow = this.root.querySelector('.vh-hull-arrow');
     this.objectiveContainer = this.root.querySelector('.objective-markers');
     this.spottedContainer = this.root.querySelector('.spotted-markers');
     this.damageVignette = this.root.querySelector('.damage-vignette');
@@ -324,6 +328,15 @@ export class HUD {
       this.vhReload.textContent = v.type === 'tank'
         ? (v.cannonReload > 0 ? `主砲裝填 ${v.cannonReload.toFixed(1)}s` : '主砲就緒')
         : '機槍就緒';
+      // 坦克砲塔與車體獨立：顯示車體朝向與視線的相對角度。
+      if (v.type === 'tank' && v.body) {
+        this.vhHullRow.hidden = false;
+        const e = new THREE.Euler().setFromQuaternion(this.game.camera.quaternion, 'YXZ');
+        const rel = wrapAngle(v.getYaw() - e.y);
+        this.vhHullArrow.style.transform = `rotate(${(-rel * 180 / Math.PI).toFixed(1)}deg)`;
+      } else {
+        this.vhHullRow.hidden = true;
+      }
       this.crosshair.classList.add('vehicle');
     } else {
       this.crosshair.classList.remove('vehicle');

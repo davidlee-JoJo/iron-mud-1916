@@ -29,8 +29,13 @@ export class Vehicle {
     this.respawnTimer = 0;
     this.smokeTimer = 0;
     this.roadkillTimer = 0;
+    this.hopCooldown = 0;
+    this.lastHullYaw = null;
+    this.visualPitch = 0;
+    this.visualRoll = 0;
     this.engine = null;
     this.mesh = new THREE.Group();
+    this.mesh.rotation.order = 'YXZ';
     this.mesh.name = opts.name || 'vehicle';
     this.game.scene.add(this.mesh);
     this.buildMesh();
@@ -56,7 +61,7 @@ export class Vehicle {
     );
     this.body.setEnabledRotations(false, true, false, true);
     this.collider = world.createCollider(
-      RAPIER.ColliderDesc.cuboid(opts.half.x, opts.half.y, opts.half.z).setMass(opts.mass).setFriction(0.8).setRestitution(0.05),
+      RAPIER.ColliderDesc.cuboid(opts.half.x, opts.half.y, opts.half.z).setMass(opts.mass).setFriction(opts.friction ?? 0.8).setRestitution(0.05),
       this.body
     );
     this.colliders = [this.collider];
@@ -113,6 +118,11 @@ export class Vehicle {
     if (this.destroyed || this.driver || player.team !== this.team) return false;
     this.driver = player;
     this.targetYaw = this.getYaw();
+    // 上車時砲塔/機槍對齊車體正面。
+    this.turretYaw = 0;
+    this.turretPitch = 0;
+    this.aimYaw = 0;
+    this.lastHullYaw = this.getYaw();
     return true;
   }
 
@@ -126,10 +136,10 @@ export class Vehicle {
     const sens = this.game.settings.sensitivity * 0.85;
     const mouse = input.consumeMouseDelta();
     if (this.type === 'tank') {
-      this.turretYaw -= mouse.x * sens;
+      // 砲塔可 360 度自由旋轉，與車體行駛方向完全獨立。
+      this.turretYaw = wrapAngle(this.turretYaw - mouse.x * sens);
       this.turretPitch -= mouse.y * sens * 0.7;
       this.turretPitch = clamp(this.turretPitch, -0.12, 0.32);
-      this.turretYaw = clamp(this.turretYaw, -Math.PI * 0.95, Math.PI * 0.95);
     } else {
       this.aimYaw -= mouse.x * sens;
       this.aimYaw = clamp(this.aimYaw, -1.2, 1.2);
@@ -150,33 +160,48 @@ export class Vehicle {
       if (input.isDown('KeyD')) steer -= 1;
     }
     const forward = this.getForward();
+    const center = this.getCenter();
     const speedMul = this.disabled ? 0.55 : 1;
-    const deep = this.game.world.isDeepWater(this.getCenter().x, this.getCenter().z);
-    const maxSpeed = (this.type === 'tank' ? 10 : 16) * speedMul * (deep ? 0.35 : 1);
-    const desired = throttle * maxSpeed;
+    const deep = this.game.world.isDeepWater(center.x, center.z);
+    let maxSpeed = (this.type === 'tank' ? 10 : 16) * speedMul * (deep ? 0.35 : 1);
+    let accel = this.type === 'tank' ? 5.0 : 7.5;
     const lv = this.body.linvel();
-    const desiredX = forward.x * desired;
-    const desiredZ = forward.z * desired;
-    const accel = this.type === 'tank' ? 4.2 : 7.5;
+
+    // 坦克爬坡輔助：取車頭/車尾取樣點高度差估算坡度。
+    // 上坡時提高推力並讓車體帶有沿坡面的垂直速度；下坡時輕微下壓貼地。
+    let climbY = null;
+    if (this.type === 'tank' && throttle !== 0 && !deep) {
+      const dirSign = throttle > 0 ? 1 : -1;
+      const probe = 2.6;
+      const front = this.game.world.heightAt(center.x + forward.x * probe * dirSign, center.z + forward.z * probe * dirSign);
+      const back = this.game.world.heightAt(center.x - forward.x * probe * dirSign, center.z - forward.z * probe * dirSign);
+      const slope = (front - back) / (2 * probe);
+      if (Math.abs(slope) > 0.08) {
+        const s = clamp(slope, -1.4, 1.4);
+        accel += Math.abs(s) * 3.0;
+        const forwardSpeed = Math.abs(lv.x * forward.x + lv.z * forward.z);
+        const followY = clamp(s * Math.max(forwardSpeed, 2.0) * 0.9, -6, 6);
+        climbY = s > 0 ? Math.max(lv.y, followY) : Math.min(lv.y, followY);
+      }
+    }
+    const desired = throttle * maxSpeed;
     this.body.setLinvel({
-      x: damp(lv.x, desiredX, accel, dt),
-      y: lv.y,
-      z: damp(lv.z, desiredZ, accel, dt)
+      x: damp(lv.x, forward.x * desired, accel, dt),
+      y: climbY === null ? lv.y : climbY,
+      z: damp(lv.z, forward.z * desired, accel, dt)
     }, true);
 
     const speed = Math.hypot(lv.x, lv.z);
     const speedFactor = clamp(speed / maxSpeed, 0, 1);
 
-    // 駕駛員按住 W/S 且沒有轉向時，讓車體慢慢對齊砲塔/鏡頭方向。
-    // 這樣按 W 會往玩家看的方向前進，不會因為砲塔轉向而感覺在橫移。
-    if (throttle !== 0 && steer === 0) {
-      const aimOffset = this.type === 'tank' ? this.turretYaw : this.aimYaw;
-      if (Math.abs(aimOffset) > 0.01) {
-        const alignRate = (this.type === 'tank' ? 2.6 : 3.0) * dt;
-        const delta = clamp(aimOffset, -alignRate, alignRate);
+    // 坦克：車身 WASD 與砲塔滑鼠完全獨立，W/S 沿車體前後、A/D 旋轉車體。
+    // 吉普：維持原本手感，按 W/S 時車體慢慢對齊機槍/鏡頭方向。
+    if (this.type !== 'tank' && throttle !== 0 && steer === 0) {
+      if (Math.abs(this.aimYaw) > 0.01) {
+        const alignRate = 3.0 * dt;
+        const delta = clamp(this.aimYaw, -alignRate, alignRate);
         this.targetYaw = wrapAngle(this.targetYaw + delta);
-        if (this.type === 'tank') this.turretYaw = wrapAngle(this.turretYaw - delta);
-        else this.aimYaw = wrapAngle(this.aimYaw - delta);
+        this.aimYaw = wrapAngle(this.aimYaw - delta);
       }
     }
 
@@ -188,7 +213,63 @@ export class Vehicle {
     const angvel = this.body.angvel();
     this.body.setAngvel({ x: 0, y: damp(angvel.y, desiredAngVel, 12, dt), z: 0 }, true);
 
-    if (deep && isPlayerDriver) this.takeDamage(8 * dt, null, 'water', this.getCenter());
+    // 履帶碾壓輔助：前方近距離有低矮障礙（沙包、彈坑緣、戰壕階梯）時
+    // 給予向上速度把車體抬過去；障礙太高（牆、建築）則不動作。
+    if (this.type === 'tank' && throttle !== 0 && !deep) {
+      this.hopCooldown -= dt;
+      if (this.hopCooldown <= 0) {
+        const dirSign = throttle > 0 ? 1 : -1;
+        const bottom = center.y - this.half.y;
+        const ox = center.x + forward.x * (this.half.z + 0.2) * dirSign;
+        const oz = center.z + forward.z * (this.half.z + 0.2) * dirSign;
+        const ray = new RAPIER.Ray(
+          { x: ox, y: bottom + 0.25, z: oz },
+          { x: forward.x * dirSign, y: 0, z: forward.z * dirSign }
+        );
+        const hit = this.game.physicsWorld.castRay(ray, 1.8, true, undefined, undefined, this.collider);
+        if (hit) {
+          const hx = ox + forward.x * dirSign * hit.timeOfImpact;
+          const hz = oz + forward.z * dirSign * hit.timeOfImpact;
+          const downRay = new RAPIER.Ray({ x: hx, y: bottom + 2.8, z: hz }, { x: 0, y: -1, z: 0 });
+          const downHit = this.game.physicsWorld.castRay(downRay, 3.4, true, undefined, undefined, this.collider);
+          if (downHit) {
+            const stepH = 2.8 - downHit.timeOfImpact;
+            if (stepH > 0.05 && stepH < 1.9) {
+              const hop = clamp(1.0 + stepH * 1.3, 1.0, 3.4);
+              const cur = this.body.linvel();
+              this.body.setLinvel({ x: cur.x, y: Math.max(cur.y, hop), z: cur.z }, true);
+              this.hopCooldown = 0.35;
+            }
+          }
+        }
+      }
+    }
+
+    if (deep && isPlayerDriver) this.takeDamage(8 * dt, null, 'water', center);
+  }
+
+  // 視覺車體貼地：以前後/左右地形高度差估算俯仰與側傾，平滑套用到外觀。
+  // 坦克專用；砲塔群反向補償保持水平，使瞄準視覺與砲彈射向一致。
+  applySlopeTilt(dt) {
+    let targetPitch = 0;
+    let targetRoll = 0;
+    if (!this.destroyed && this.type === 'tank' && this.game.world) {
+      const t = this.body.translation();
+      const fwd = this.getForward();
+      const right = this.getRight();
+      const dF = 2.4;
+      const hFront = this.game.world.heightAt(t.x + fwd.x * dF, t.z + fwd.z * dF);
+      const hBack = this.game.world.heightAt(t.x - fwd.x * dF, t.z - fwd.z * dF);
+      const hRight = this.game.world.heightAt(t.x + right.x * 1.6, t.z + right.z * 1.6);
+      const hLeft = this.game.world.heightAt(t.x - right.x * 1.6, t.z - right.z * 1.6);
+      targetPitch = clamp(Math.atan2(hFront - hBack, 2 * dF), -0.3, 0.3);
+      targetRoll = clamp(Math.atan2(hRight - hLeft, 3.2), -0.25, 0.25);
+    }
+    this.visualPitch = damp(this.visualPitch, targetPitch, 4.5, dt);
+    this.visualRoll = damp(this.visualRoll, targetRoll, 4.5, dt);
+    this.mesh.rotation.x = this.visualPitch;
+    this.mesh.rotation.z = this.destroyed ? 0.18 : this.visualRoll;
+    if (this.turretGroup) this.turretGroup.rotation.x = -this.visualPitch;
   }
 
   update(dt) {
@@ -201,7 +282,21 @@ export class Vehicle {
     const q = this.body.rotation();
     this.mesh.position.set(t.x, t.y, t.z);
     this.mesh.quaternion.set(q.x, q.y, q.z, q.w);
-    if (this.destroyed) this.mesh.rotation.z = 0.18;
+
+    // 坦克砲塔維持世界方向：車體轉動（A/D 或碰撞修正）時反向補償相對角，
+    // 讓滑鼠瞄準的方位不會跟著車體一起轉。
+    if (!this.destroyed) {
+      const yaw = this.getYaw();
+      if (this.type === 'tank' && this.lastHullYaw !== null) {
+        const dYaw = wrapAngle(yaw - this.lastHullYaw);
+        if (dYaw !== 0) this.turretYaw = wrapAngle(this.turretYaw - dYaw);
+      }
+      this.lastHullYaw = yaw;
+    }
+
+    // 視覺上讓車體貼合地形坡度（俯仰/側傾），砲塔群反向補償保持水平，
+    // 純外觀不影響物理；砲彈射向仍以 yaw + turretPitch 計算。
+    this.applySlopeTilt(dt);
 
     this.cannonReload = Math.max(0, this.cannonReload - dt);
     this.mgCooldown = Math.max(0, this.mgCooldown - dt);
@@ -402,6 +497,10 @@ export class Vehicle {
     this.turretYaw = 0;
     this.turretPitch = 0;
     this.aimYaw = 0;
+    this.lastHullYaw = this.getYaw();
+    this.visualPitch = 0;
+    this.visualRoll = 0;
+    this.hopCooldown = 0;
     this.respawnTimer = 0;
   }
 
